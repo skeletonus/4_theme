@@ -11,75 +11,156 @@
 
     <script type="module">
         import * as THREE from
-            "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
-            
+            "https://esm.sh/three@0.180.0";
+
         import { GLTFLoader } from
-            "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js";
-    
-    
+            "https://esm.sh/three@0.180.0/examples/jsm/loaders/GLTFLoader.js";
+
 
         const scene = new THREE.Scene();
+
         const camera = new THREE.PerspectiveCamera();
-        const renderer = new THREE.WebGLRenderer({ alpha: true });
+
+        const renderer = new THREE.WebGLRenderer({
+            alpha: true,
+            antialias: true
+        });
+
         renderer.xr.enabled = true;
         renderer.xr.setReferenceSpaceType("local-floor");
+
         renderer.setSize(innerWidth, innerHeight);
+
         document.body.appendChild(renderer.domElement);
+
+
+        // Загружаем модель
+        let model;
 
         const loader = new GLTFLoader();
 
-        let model;
+        loader.load(
+            "model.glb",
 
-        loader.load("./tralalero_tralala.glb", (gltf) => {
-            model = gltf.scene;
-            model.visible = false;
-            scene.add(model);
-        });
-        const marker = new THREE.Mesh(
-            new THREE.RingGeometry(.08, .1, 32),
-            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            gltf => {
+                model = gltf.scene;
+
+                model.visible = false;
+
+                model.scale.set(1, 1, 1);
+
+                scene.add(model);
+            },
+
+            undefined,
+
+            error => {
+                console.error("Ошибка загрузки model.glb:", error);
+            }
         );
+
+
+        // Маркер на поверхности
+        const marker = new THREE.Mesh(
+            new THREE.RingGeometry(0.08, 0.1, 32),
+            new THREE.MeshBasicMaterial({
+                color: 0xffffff
+            })
+        );
+
         marker.rotation.x = -Math.PI / 2;
         marker.visible = false;
+
         scene.add(marker);
 
-        let hit, space;
 
+        let hit;
+        let space;
+
+
+        // Запуск AR
         start.onclick = async () => {
-            const session = await navigator.xr.requestSession("immersive-ar", {
-                requiredFeatures: ["hit-test", "local-floor"]
-            });
+
+            const session = await navigator.xr.requestSession(
+                "immersive-ar",
+                {
+                    requiredFeatures: [
+                        "hit-test",
+                        "local-floor"
+                    ]
+                }
+            );
 
             renderer.xr.setSession(session);
 
-            space = await session.requestReferenceSpace("local-floor");
+
+            // Пространство AR
+            space = await session.requestReferenceSpace(
+                "local-floor"
+            );
+
+
+            // Источник hit-test
+            const viewerSpace =
+                await session.requestReferenceSpace("viewer");
 
             hit = await session.requestHitTestSource({
-                space: await session.requestReferenceSpace("viewer")
+                space: viewerSpace
             });
 
+
+            // Нажатие на экран
             session.addEventListener("select", () => {
-                if (marker.visible) {
-                    cube.position.copy(marker.position);
-                    cube.visible = true;
+
+                if (marker.visible && model) {
+
+                    model.position.copy(marker.position);
+
+                    model.visible = true;
+
                     marker.visible = false;
                 }
             });
         };
 
+
+        // Каждый кадр AR
         renderer.setAnimationLoop((_, frame) => {
+
             if (frame && hit) {
-                const results = frame.getHitTestResults(hit);
+
+                const results =
+                    frame.getHitTestResults(hit);
+
 
                 if (results.length) {
-                    const p = results[0].getPose(space).transform.position;
-                    marker.position.set(p.x, p.y, p.z);
-                    if (!cube.visible) marker.visible = true;
+
+                    const pose =
+                        results[0]
+                            .getPose(space);
+
+
+                    const position =
+                        pose.transform.position;
+
+
+                    marker.position.set(
+                        position.x,
+                        position.y,
+                        position.z
+                    );
+
+
+                    if (!model?.visible) {
+                        marker.visible = true;
+                    }
                 }
             }
 
+
             renderer.render(scene, camera);
         });
+
     </script>
 </body>
 
