@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+
+<body>
+    <button id="start">START AR</button>
+
+    <script type="module">
+        import * as THREE from
+            "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+            
+        import { GLTFLoader } from
+            "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js";
+    
+    
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera();
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType("local-floor");
+        renderer.setSize(innerWidth, innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const loader = new GLTFLoader();
+
+        let model;
+
+        loader.load("./tralalero_tralala.glb", (gltf) => {
+            model = gltf.scene;
+            model.visible = false;
+            scene.add(model);
+        });
+        const marker = new THREE.Mesh(
+            new THREE.RingGeometry(.08, .1, 32),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        marker.rotation.x = -Math.PI / 2;
+        marker.visible = false;
+        scene.add(marker);
+
+        let hit, space;
+
+        start.onclick = async () => {
+            const session = await navigator.xr.requestSession("immersive-ar", {
+                requiredFeatures: ["hit-test", "local-floor"]
+            });
+
+            renderer.xr.setSession(session);
+
+            space = await session.requestReferenceSpace("local-floor");
+
+            hit = await session.requestHitTestSource({
+                space: await session.requestReferenceSpace("viewer")
+            });
+
+            session.addEventListener("select", () => {
+                if (marker.visible) {
+                    cube.position.copy(marker.position);
+                    cube.visible = true;
+                    marker.visible = false;
+                }
+            });
+        };
+
+        renderer.setAnimationLoop((_, frame) => {
+            if (frame && hit) {
+                const results = frame.getHitTestResults(hit);
+
+                if (results.length) {
+                    const p = results[0].getPose(space).transform.position;
+                    marker.position.set(p.x, p.y, p.z);
+                    if (!cube.visible) marker.visible = true;
+                }
+            }
+
+            renderer.render(scene, camera);
+        });
+    </script>
+</body>
+
+</html>
